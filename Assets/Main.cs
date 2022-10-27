@@ -22,12 +22,15 @@ public class Main : MonoBehaviour
   Vector2 targetPan = Vector2.zero;
 
   RenderTexture renderTexture;
+  RenderTexture renderTexture2;
   int computeGroupsX;
   int computeGroupsY;
   float timer = 0;
+  bool swap = false;
 
   void Start()
   {
+    swap = false;
     zoom = 1;
     targetZoom = 1;
     pan = Vector2.zero;
@@ -36,13 +39,14 @@ public class Main : MonoBehaviour
     width = (int)(resolution * Camera.main.aspect);
     renderTexture = new RenderTexture(width, resolution, 0);
     renderTexture.enableRandomWrite = true;
+    renderTexture2 = new RenderTexture(width, resolution, 0);
+    renderTexture2.enableRandomWrite = true;
 
     cellText.text = "Cells: " + (width * resolution);
 
     computeGroupsX = Mathf.CeilToInt(resolution * Camera.main.aspect / 8f);
     computeGroupsY = Mathf.CeilToInt(resolution / 8f);
     computeShader.SetTexture(1, "Result", renderTexture);
-    computeShader.SetTexture(0, "Result", renderTexture);
 
     computeShader.SetInt("rng_state", Random.Range(0, int.MaxValue));
     computeShader.SetInt("width", width);
@@ -52,7 +56,7 @@ public class Main : MonoBehaviour
 
   void OnRenderImage(RenderTexture src, RenderTexture dest)
   {
-    Graphics.Blit(renderTexture, dest, new Vector2(zoom, zoom), pan);
+    Graphics.Blit(swap ? renderTexture2 : renderTexture, dest, new Vector2(zoom, zoom), pan);
   }
 
   void Update()
@@ -63,17 +67,25 @@ public class Main : MonoBehaviour
 
     if (maxSpeed)
     {
-      computeShader.Dispatch(0, computeGroupsX, computeGroupsY, 1);
+      CalculateLife();
     }
     else
     {
       timer -= Time.deltaTime;
       if (timer < 0)
       {
-        computeShader.Dispatch(0, computeGroupsX, computeGroupsY, 1);
+        CalculateLife();
         timer = 1 / updateSpeed;
       }
     }
+  }
+
+  void CalculateLife()
+  {
+    computeShader.SetTexture(0, "Input", swap ? renderTexture2 : renderTexture);
+    computeShader.SetTexture(0, "Result", swap ? renderTexture : renderTexture2);
+    computeShader.Dispatch(0, computeGroupsX, computeGroupsY, 1);
+    swap = !swap;
   }
 
   // UI related stuff
@@ -95,6 +107,7 @@ public class Main : MonoBehaviour
   public void SliderChange(float val)
   {
     renderTexture.Release();
+    renderTexture2.Release();
     resolution = (int)val;
     Start();
   }

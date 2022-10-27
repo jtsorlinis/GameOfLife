@@ -1,4 +1,5 @@
 RWTexture2D<float> Result;
+Texture2D<float> Input;
 uint rng_state;
 uint width;
 uint height;
@@ -19,26 +20,32 @@ void Update (uint3 id : SV_DispatchThreadID) {
     }
 
     int2 pos = id.xy;
-    int self = Result[pos];
+    int self = Input[pos];
     int neighbours = 0;
 
     for(int y = pos.y - 1; y <= pos.y + 1; y++) {
         for(int x = pos.x - 1; x <= pos.x + 1; x++) {
             uint2 neighbourPos = uint2(x,y);
-            int val = Result[neighbourPos];
+            int val = Input[neighbourPos];
             neighbours += val;
         }
     }
     neighbours -= self;
 
+    // Alive
     if (self > 0) {
         if (neighbours >= 2 && neighbours <= 3) {
             Result[id.xy] = 1;
         } else {
             Result[id.xy] = 0;
         }
-    } else if (neighbours == 3) {
-        Result[id.xy] = 1;
+    // Dead
+    } else {
+        if (neighbours == 3) {
+            Result[id.xy] = 1;
+        } else {
+            Result[id.xy] = 0;
+        }
     }
 
 }
