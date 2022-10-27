@@ -1,6 +1,7 @@
 RWTexture2D<float> Result;
 uint rng_state;
 uint width;
+uint height;
 
 float pcg_hash(uint input)
 {
@@ -12,6 +13,11 @@ float pcg_hash(uint input)
 #pragma kernel Update // ID 0
 [numthreads(8,8,1)]
 void Update (uint3 id : SV_DispatchThreadID) {
+    // Leave 1 pixel border
+    if(id.x == 0 || id.x >= width - 1 || id.y == 0 || id.y >= height - 1) {
+        return;
+    }
+
     int2 pos = id.xy;
     int self = Result[pos];
     int neighbours = 0;
@@ -40,6 +46,11 @@ void Update (uint3 id : SV_DispatchThreadID) {
 #pragma kernel Generate // ID 1
 [numthreads(8,8,1)]
 void Generate(uint3 id : SV_DispatchThreadID) {
+    // Leave 1 pixel border
+    if(id.x == 0 || id.x >= width - 1 || id.y == 0 || id.y >= height - 1) {
+        return;
+    }
+    
     uint alive = round(pcg_hash(rng_state + (id.y*width + id.x)));
     Result[id.xy] = alive;
 }

@@ -46,6 +46,7 @@ public class Main : MonoBehaviour
 
     computeShader.SetInt("rng_state", Random.Range(0, int.MaxValue));
     computeShader.SetInt("width", width);
+    computeShader.SetInt("height", resolution);
     computeShader.Dispatch(1, computeGroupsX, computeGroupsY, 1);
   }
 
