@@ -16,8 +16,7 @@ public class Main : MonoBehaviour
   [SerializeField] Text fpsText;
   [SerializeField] Text cellText;
 
-  float zoom = 1;
-  float targetZoom = 1;
+  float zoom, targetZoom, maxZoom;
   Vector2 pan = Vector2.zero;
   Vector2 targetPan = Vector2.zero;
 
@@ -26,13 +25,14 @@ public class Main : MonoBehaviour
   int computeGroupsX;
   int computeGroupsY;
   float timer = 0;
-  bool swap = false;
+  bool swap;
 
   void Start()
   {
     swap = false;
     zoom = 1;
     targetZoom = 1;
+    maxZoom = 128f / resolution;
     pan = Vector2.zero;
     targetPan = Vector2.zero;
 
@@ -92,6 +92,10 @@ public class Main : MonoBehaviour
   void PanZoom()
   {
     float zoomDelta = Input.mouseScrollDelta.y * (zoom / 10);
+    if (zoom - zoomDelta < maxZoom)
+    {
+      zoomDelta = targetZoom - maxZoom;
+    }
     targetZoom -= zoomDelta;
     zoom = Mathf.Lerp(zoom, targetZoom, Time.deltaTime * 10);
     targetPan -= new Vector2(zoomDelta / -2, zoomDelta / -2);
@@ -99,8 +103,19 @@ public class Main : MonoBehaviour
 
     if (Input.GetMouseButton(1))
     {
+      Cursor.lockState = CursorLockMode.Locked;
       pan -= new Vector2(Input.GetAxis("Mouse X"), Input.GetAxis("Mouse Y")) * (zoom / 100);
       targetPan = pan;
+    }
+    else
+    {
+      Cursor.lockState = CursorLockMode.None;
+    }
+
+    // Quit on escape
+    if (Input.GetKey("escape"))
+    {
+      Application.Quit();
     }
   }
 
