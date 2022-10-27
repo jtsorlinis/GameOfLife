@@ -114,6 +114,8 @@ public class Main : MonoBehaviour
 
   public void RestartButton()
   {
+    renderTexture.Release();
+    renderTexture2.Release();
     Start();
   }
 
