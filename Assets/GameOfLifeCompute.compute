@@ -4,62 +4,61 @@ uint rng_state;
 uint width;
 uint height;
 
-float pcg_hash(uint input)
-{
-    uint state = input * 747796405u + 2891336453u;
-    uint word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
-    return ((word >> 22u) ^ word) / 4294967295.0;
+float pcg_hash(uint input) {
+  uint state = input * 747796405u + 2891336453u;
+  uint word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
+  return ((word >> 22u) ^ word) / 4294967295.0;
 }
 
 #pragma kernel Update // ID 0
-[numthreads(8,8,1)]
-void Update (uint3 id : SV_DispatchThreadID) {
-    // Leave 1 pixel border
-    if(id.x == 0 || id.x >= width - 1 || id.y == 0 || id.y >= height - 1) {
-        return;
+[numthreads(8, 8, 1)]
+void Update(uint3 id : SV_DispatchThreadID) {
+  // Leave 1 pixel border
+  if (id.x == 0 || id.x >= width - 1 || id.y == 0 || id.y >= height - 1) {
+    return;
+  }
+
+  int2 pos = id.xy;
+  int self = (Input[pos] > 0.5) ? 1 : 0;
+  int neighbours = 0;
+
+  for (int y = pos.y - 1; y <= pos.y + 1; y++) {
+    for (int x = pos.x - 1; x <= pos.x + 1; x++) {
+      uint2 neighbourPos = uint2(x, y);
+      int val = (Input[neighbourPos] > 0.5) ? 1 : 0;
+      neighbours += val;
     }
+  }
+  neighbours -= self;
 
-    int2 pos = id.xy;
-    int self = (Input[pos] > 0.5) ? 1 : 0;
-    int neighbours = 0;
-
-    for(int y = pos.y - 1; y <= pos.y + 1; y++) {
-        for(int x = pos.x - 1; x <= pos.x + 1; x++) {
-            uint2 neighbourPos = uint2(x,y);
-            int val = (Input[neighbourPos] > 0.5) ? 1 : 0;
-            neighbours += val;
-        }
-    }
-    neighbours -= self;
-
-    // Alive
-    if (self > 0) {
-        if (neighbours >= 2 && neighbours <= 3) {
-            Result[id.xy] = 1;
-        } else {
-            Result[id.xy] = 0;
-        }
-    // Dead
+  // Alive
+  if (self > 0) {
+    if (neighbours >= 2 && neighbours <= 3) {
+      Result[id.xy] = 1;
     } else {
-        if (neighbours == 3) {
-            Result[id.xy] = 1;
-        } else {
-            Result[id.xy] = 0;
-        }
+      Result[id.xy] = 0;
     }
+    // Dead
 
+  } else {
+    if (neighbours == 3) {
+      Result[id.xy] = 1;
+    } else {
+      Result[id.xy] = 0;
+    }
+  }
 }
 
 #pragma kernel Generate // ID 1
-[numthreads(8,8,1)]
+[numthreads(8, 8, 1)]
 void Generate(uint3 id : SV_DispatchThreadID) {
-    // Leave 1 pixel border
-    if(id.x == 0 || id.x >= width - 1 || id.y == 0 || id.y >= height - 1) {
-        return;
-    }
-    
-    uint alive = round(pcg_hash(rng_state + (id.y*width + id.x)));
-    Result[id.xy] = alive;
+  // Leave 1 pixel border
+  if (id.x == 0 || id.x >= width - 1 || id.y == 0 || id.y >= height - 1) {
+    return;
+  }
+  
+  uint alive = round(pcg_hash(rng_state + (id.y * width + id.x)));
+  Result[id.xy] = alive;
 }
 
 
