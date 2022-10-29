@@ -22,7 +22,9 @@ void Update(uint3 id : SV_DispatchThreadID) {
   int self = (Input[pos] > 0.5) ? 1 : 0;
   int neighbours = 0;
 
+  [unroll]
   for (int y = pos.y - 1; y <= pos.y + 1; y++) {
+    [unroll]
     for (int x = pos.x - 1; x <= pos.x + 1; x++) {
       uint2 neighbourPos = uint2(x, y);
       int val = (Input[neighbourPos] > 0.5) ? 1 : 0;
