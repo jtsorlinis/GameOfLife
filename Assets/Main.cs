@@ -15,6 +15,7 @@ public class Main : MonoBehaviour
   [SerializeField] ComputeShader computeShader;
   [SerializeField] Text fpsText;
   [SerializeField] Text cellText;
+  [SerializeField] Slider slider;
   [SerializeField] Transform quad;
   [SerializeField] Material quadMaterial;
 
@@ -24,39 +25,64 @@ public class Main : MonoBehaviour
 
   ComputeBuffer buffer1;
   ComputeBuffer buffer2;
+  int bufferLength = 1;
   int computeGroupsX;
   int computeGroupsY;
   float timer = 0;
   bool swap;
 
+  void Awake()
+  {
+    buffer1 = new ComputeBuffer(bufferLength, 4);
+    buffer2 = new ComputeBuffer(bufferLength, 4);
+  }
+
   void Start()
   {
     cam = Camera.main;
+    slider.maxValue = Mathf.Floor(Mathf.Sqrt((1 << 29) / cam.aspect));
     QualitySettings.vSyncCount = maxSpeed ? 0 : 1;
     swap = false;
 
     width = (int)(resolution * cam.aspect);
     totalCells = width * resolution;
+
+    // Resize buffer if needed
+    if (totalCells > bufferLength)
+    {
+      buffer1.Dispose();
+      buffer2.Dispose();
+      bufferLength = Mathf.NextPowerOfTwo(totalCells);
+      buffer1 = new ComputeBuffer(bufferLength, 4);
+      buffer2 = new ComputeBuffer(bufferLength, 4);
+    }
+
     cam.orthographicSize = resolution / 128f;
+    cam.transform.position = new Vector3(0, 0, -10);
     targetZoom = cam.orthographicSize;
     minZoom = cam.orthographicSize * 1.05f;
     quad.localScale = new Vector2(cam.orthographicSize * cam.aspect * 2, cam.orthographicSize * 2);
     cellText.text = "Cells: " + totalCells;
 
-    buffer1 = new ComputeBuffer(totalCells, 4);
-    buffer2 = new ComputeBuffer(totalCells, 4);
-
     quadMaterial.SetBuffer("grid", buffer1);
     quadMaterial.SetInteger("height", resolution);
     quadMaterial.SetInteger("width", width);
 
-    computeShader.SetBuffer(1, "Result", buffer1);
     computeShader.SetInt("rng_state", Random.Range(0, int.MaxValue));
     computeShader.SetInt("width", width);
     computeShader.SetInt("height", resolution);
 
     computeGroupsX = Mathf.CeilToInt(width / 8f);
     computeGroupsY = Mathf.CeilToInt(resolution / 8f);
+
+    // Clear previous grid
+    computeShader.SetBuffer(2, "gridOut", buffer1);
+    computeShader.Dispatch(2, computeGroupsX, computeGroupsY, 1);
+    computeShader.SetBuffer(2, "gridOut", buffer2);
+    computeShader.Dispatch(2, computeGroupsX, computeGroupsY, 1);
+
+    // Generate new grid
+    computeShader.SetBuffer(1, "gridOut", buffer1);
     computeShader.Dispatch(1, computeGroupsX, computeGroupsY, 1);
   }
 
@@ -83,8 +109,8 @@ public class Main : MonoBehaviour
 
   void CalculateLife()
   {
-    computeShader.SetBuffer(0, "Input", swap ? buffer2 : buffer1);
-    computeShader.SetBuffer(0, "Result", swap ? buffer1 : buffer2);
+    computeShader.SetBuffer(0, "gridIn", swap ? buffer2 : buffer1);
+    computeShader.SetBuffer(0, "gridOut", swap ? buffer1 : buffer2);
     computeShader.Dispatch(0, computeGroupsX, computeGroupsY, 1);
     quadMaterial.SetBuffer("grid", swap ? buffer1 : buffer2);
     swap = !swap;
@@ -93,7 +119,7 @@ public class Main : MonoBehaviour
   // UI related stuff
   void PanZoom()
   {
-    targetZoom -= Input.mouseScrollDelta.y * (cam.orthographicSize / 5);
+    targetZoom -= Input.mouseScrollDelta.y * (cam.orthographicSize / 10);
     if (targetZoom < maxZoom)
     {
       targetZoom = maxZoom;
@@ -102,7 +128,7 @@ public class Main : MonoBehaviour
     {
       targetZoom = minZoom;
     }
-    cam.orthographicSize = Mathf.Lerp(cam.orthographicSize, targetZoom, Time.deltaTime * 5);
+    cam.orthographicSize = Mathf.Lerp(cam.orthographicSize, targetZoom, Time.deltaTime * 10);
 
     if (Input.GetMouseButton(1))
     {
@@ -123,16 +149,12 @@ public class Main : MonoBehaviour
 
   public void SliderChange(float val)
   {
-    buffer1.Dispose();
-    buffer2.Dispose();
     resolution = (int)val;
     Start();
   }
 
   public void RestartButton()
   {
-    buffer1.Dispose();
-    buffer2.Dispose();
     Start();
   }
 

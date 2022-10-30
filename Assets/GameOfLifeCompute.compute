@@ -1,5 +1,5 @@
-RWStructuredBuffer<uint> Result;
-StructuredBuffer<uint> Input;
+RWStructuredBuffer<uint> gridOut;
+StructuredBuffer<uint> gridIn;
 uint rng_state;
 uint width;
 uint height;
@@ -15,22 +15,22 @@ void Update(uint3 id : SV_DispatchThreadID) {
   uint index = id.y * width + id.x;
 
   uint neighbours = 0;
-  neighbours += Input[index - width - 1]; // Top left
-  neighbours += Input[index - width]; // Top
-  neighbours += Input[index - width + 1]; // Top Right
+  neighbours += gridIn[index - width - 1]; // Top left
+  neighbours += gridIn[index - width]; // Top
+  neighbours += gridIn[index - width + 1]; // Top Right
 
-  neighbours += Input[index - 1]; // Left
-  neighbours += Input[index + 1]; // Right
+  neighbours += gridIn[index - 1]; // Left
+  neighbours += gridIn[index + 1]; // Right
 
-  neighbours += Input[index + width - 1]; // Bottom left
-  neighbours += Input[index + width]; // Bottom
-  neighbours += Input[index + width + 1]; // Bottom Right
+  neighbours += gridIn[index + width - 1]; // Bottom left
+  neighbours += gridIn[index + width]; // Bottom
+  neighbours += gridIn[index + width + 1]; // Bottom Right
 
-  uint self = Input[index] > 0;
+  uint self = gridIn[index] > 0;
   if ((self > 0 && neighbours == 2) || neighbours == 3) {
-    Result[index] = 1;
+    gridOut[index] = 1;
   } else {
-    Result[index] = 0;
+    gridOut[index] = 0;
   }
 }
 
@@ -49,10 +49,15 @@ void Generate(uint3 id : SV_DispatchThreadID) {
   }
 
   int index = id.y * width + id.x;
-  
+
   uint alive = round(pcg_hash(rng_state + index));
-  Result[index] = alive;
+  gridOut[index] = alive;
 }
 
-
+#pragma kernel Clear // ID 2
+[numthreads(8, 8, 1)]
+void Clear(uint3 id : SV_DispatchThreadID) {
+  int index = id.y * width + id.x;
+  gridOut[index] = 0;
+}
 
