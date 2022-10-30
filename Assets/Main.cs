@@ -5,7 +5,7 @@ public class Main : MonoBehaviour
 {
   [SerializeField]
   int resolution = 128;
-  int width;
+  int width, totalCells;
   [SerializeField]
   bool maxSpeed = false;
   [SerializeField, Range(1, 60)]
@@ -15,13 +15,15 @@ public class Main : MonoBehaviour
   [SerializeField] ComputeShader computeShader;
   [SerializeField] Text fpsText;
   [SerializeField] Text cellText;
+  [SerializeField] Transform quad;
+  [SerializeField] Material quadMaterial;
 
-  float zoom, targetZoom, maxZoom;
-  Vector2 pan = Vector2.zero;
-  Vector2 targetPan = Vector2.zero;
+  float minZoom, targetZoom;
+  float maxZoom = 0.5f;
+  Camera cam;
 
-  RenderTexture renderTexture;
-  RenderTexture renderTexture2;
+  ComputeBuffer buffer1;
+  ComputeBuffer buffer2;
   int computeGroupsX;
   int computeGroupsY;
   float timer = 0;
@@ -29,35 +31,33 @@ public class Main : MonoBehaviour
 
   void Start()
   {
+    cam = Camera.main;
     QualitySettings.vSyncCount = maxSpeed ? 0 : 1;
     swap = false;
-    zoom = 1;
-    targetZoom = 1;
-    maxZoom = 128f / resolution;
-    pan = Vector2.zero;
-    targetPan = Vector2.zero;
 
-    width = (int)(resolution * Camera.main.aspect);
-    renderTexture = new RenderTexture(width, resolution, 0);
-    renderTexture.enableRandomWrite = true;
-    renderTexture2 = new RenderTexture(width, resolution, 0);
-    renderTexture2.enableRandomWrite = true;
+    width = (int)(resolution * cam.aspect);
+    totalCells = width * resolution;
+    cam.orthographicSize = resolution / 128f;
+    targetZoom = cam.orthographicSize;
+    minZoom = cam.orthographicSize * 1.05f;
+    quad.localScale = new Vector2(cam.orthographicSize * cam.aspect * 2, cam.orthographicSize * 2);
+    cellText.text = "Cells: " + totalCells;
 
-    cellText.text = "Cells: " + (width * resolution);
+    buffer1 = new ComputeBuffer(totalCells, 4);
+    buffer2 = new ComputeBuffer(totalCells, 4);
 
-    computeGroupsX = Mathf.CeilToInt(resolution * Camera.main.aspect / 8f);
-    computeGroupsY = Mathf.CeilToInt(resolution / 8f);
-    computeShader.SetTexture(1, "Result", renderTexture);
+    quadMaterial.SetBuffer("grid", buffer1);
+    quadMaterial.SetInteger("height", resolution);
+    quadMaterial.SetInteger("width", width);
 
+    computeShader.SetBuffer(1, "Result", buffer1);
     computeShader.SetInt("rng_state", Random.Range(0, int.MaxValue));
     computeShader.SetInt("width", width);
     computeShader.SetInt("height", resolution);
-    computeShader.Dispatch(1, computeGroupsX, computeGroupsY, 1);
-  }
 
-  void OnRenderImage(RenderTexture src, RenderTexture dest)
-  {
-    Graphics.Blit(swap ? renderTexture2 : renderTexture, dest, new Vector2(zoom, zoom), pan);
+    computeGroupsX = Mathf.CeilToInt(width / 8f);
+    computeGroupsY = Mathf.CeilToInt(resolution / 8f);
+    computeShader.Dispatch(1, computeGroupsX, computeGroupsY, 1);
   }
 
   void Update()
@@ -83,30 +83,31 @@ public class Main : MonoBehaviour
 
   void CalculateLife()
   {
-    computeShader.SetTexture(0, "Input", swap ? renderTexture2 : renderTexture);
-    computeShader.SetTexture(0, "Result", swap ? renderTexture : renderTexture2);
+    computeShader.SetBuffer(0, "Input", swap ? buffer2 : buffer1);
+    computeShader.SetBuffer(0, "Result", swap ? buffer1 : buffer2);
     computeShader.Dispatch(0, computeGroupsX, computeGroupsY, 1);
+    quadMaterial.SetBuffer("grid", swap ? buffer1 : buffer2);
     swap = !swap;
   }
 
   // UI related stuff
   void PanZoom()
   {
-    float zoomDelta = Input.mouseScrollDelta.y * (zoom / 10);
-    if (zoom - zoomDelta < maxZoom)
+    targetZoom -= Input.mouseScrollDelta.y * (cam.orthographicSize / 5);
+    if (targetZoom < maxZoom)
     {
-      zoomDelta = targetZoom - maxZoom;
+      targetZoom = maxZoom;
     }
-    targetZoom -= zoomDelta;
-    zoom = Mathf.Lerp(zoom, targetZoom, Time.deltaTime * 10);
-    targetPan -= new Vector2(zoomDelta / -2, zoomDelta / -2);
-    pan = Vector2.Lerp(pan, targetPan, Time.deltaTime * 10);
+    else if (targetZoom > minZoom)
+    {
+      targetZoom = minZoom;
+    }
+    cam.orthographicSize = Mathf.Lerp(cam.orthographicSize, targetZoom, Time.deltaTime * 5);
 
     if (Input.GetMouseButton(1))
     {
       Cursor.lockState = CursorLockMode.Locked;
-      pan -= new Vector2(Input.GetAxis("Mouse X"), Input.GetAxis("Mouse Y")) * (zoom / 100);
-      targetPan = pan;
+      cam.transform.position -= new Vector3(Input.GetAxis("Mouse X"), Input.GetAxis("Mouse Y")) * (cam.orthographicSize / 50);
     }
     else
     {
@@ -122,16 +123,16 @@ public class Main : MonoBehaviour
 
   public void SliderChange(float val)
   {
-    renderTexture.Release();
-    renderTexture2.Release();
+    buffer1.Dispose();
+    buffer2.Dispose();
     resolution = (int)val;
     Start();
   }
 
   public void RestartButton()
   {
-    renderTexture.Release();
-    renderTexture2.Release();
+    buffer1.Dispose();
+    buffer2.Dispose();
     Start();
   }
 
@@ -139,5 +140,11 @@ public class Main : MonoBehaviour
   {
     maxSpeed = active;
     QualitySettings.vSyncCount = maxSpeed ? 0 : 1;
+  }
+
+  public void OnDestroy()
+  {
+    buffer1.Dispose();
+    buffer2.Dispose();
   }
 }

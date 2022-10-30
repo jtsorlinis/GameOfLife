@@ -1,14 +1,8 @@
-RWTexture2D<float> Result;
-Texture2D<float> Input;
+RWStructuredBuffer<uint> Result;
+StructuredBuffer<uint> Input;
 uint rng_state;
 uint width;
 uint height;
-
-float pcg_hash(uint input) {
-  uint state = input * 747796405u + 2891336453u;
-  uint word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
-  return ((word >> 22u) ^ word) / 4294967295.0;
-}
 
 #pragma kernel Update // ID 0
 [numthreads(8, 8, 1)]
@@ -18,37 +12,32 @@ void Update(uint3 id : SV_DispatchThreadID) {
     return;
   }
 
-  int2 pos = id.xy;
-  int self = (Input[pos] > 0.5) ? 1 : 0;
-  int neighbours = 0;
+  uint index = id.y * width + id.x;
 
-  [unroll]
-  for (int y = pos.y - 1; y <= pos.y + 1; y++) {
-    [unroll]
-    for (int x = pos.x - 1; x <= pos.x + 1; x++) {
-      uint2 neighbourPos = uint2(x, y);
-      int val = (Input[neighbourPos] > 0.5) ? 1 : 0;
-      neighbours += val;
-    }
-  }
-  neighbours -= self;
+  uint neighbours = 0;
+  neighbours += Input[index - width - 1]; // Top left
+  neighbours += Input[index - width]; // Top
+  neighbours += Input[index - width + 1]; // Top Right
 
-  // Alive
-  if (self > 0) {
-    if (neighbours >= 2 && neighbours <= 3) {
-      Result[id.xy] = 1;
-    } else {
-      Result[id.xy] = 0;
-    }
-    // Dead
+  neighbours += Input[index - 1]; // Left
+  neighbours += Input[index + 1]; // Right
 
+  neighbours += Input[index + width - 1]; // Bottom left
+  neighbours += Input[index + width]; // Bottom
+  neighbours += Input[index + width + 1]; // Bottom Right
+
+  uint self = Input[index] > 0;
+  if ((self > 0 && neighbours == 2) || neighbours == 3) {
+    Result[index] = 1;
   } else {
-    if (neighbours == 3) {
-      Result[id.xy] = 1;
-    } else {
-      Result[id.xy] = 0;
-    }
+    Result[index] = 0;
   }
+}
+
+float pcg_hash(uint input) {
+  uint state = input * 747796405u + 2891336453u;
+  uint word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
+  return ((word >> 22u) ^ word) / 4294967295.0;
 }
 
 #pragma kernel Generate // ID 1
@@ -58,9 +47,11 @@ void Generate(uint3 id : SV_DispatchThreadID) {
   if (id.x == 0 || id.x >= width - 1 || id.y == 0 || id.y >= height - 1) {
     return;
   }
+
+  int index = id.y * width + id.x;
   
-  uint alive = round(pcg_hash(rng_state + (id.y * width + id.x)));
-  Result[id.xy] = alive;
+  uint alive = round(pcg_hash(rng_state + index));
+  Result[index] = alive;
 }
 
 
