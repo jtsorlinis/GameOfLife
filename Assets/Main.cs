@@ -29,6 +29,7 @@ public class Main : MonoBehaviour
 
   void Start()
   {
+    QualitySettings.vSyncCount = maxSpeed ? 0 : 1;
     swap = false;
     zoom = 1;
     targetZoom = 1;
@@ -137,5 +138,6 @@ public class Main : MonoBehaviour
   public void TurboSwitch(bool active)
   {
     maxSpeed = active;
+    QualitySettings.vSyncCount = maxSpeed ? 0 : 1;
   }
 }
