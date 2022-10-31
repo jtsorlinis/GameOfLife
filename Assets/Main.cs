@@ -91,6 +91,8 @@ public class Main : MonoBehaviour
   {
     fpsText.text = "FPS: " + (int)(1 / Time.smoothDeltaTime);
 
+    HandleDrawing();
+
     PanZoom();
 
     if (paused)
@@ -110,6 +112,30 @@ public class Main : MonoBehaviour
         CalculateLife();
         timer = 1 / updateSpeed;
       }
+    }
+  }
+
+  void HandleDrawing()
+  {
+    // Clear
+    if (Input.GetKeyDown(KeyCode.Backspace))
+    {
+      computeShader.SetBuffer(2, "gridOut", buffer1);
+      computeShader.Dispatch(2, computeGroupsX, computeGroupsY, 1);
+      computeShader.SetBuffer(2, "gridOut", buffer2);
+      computeShader.Dispatch(2, computeGroupsX, computeGroupsY, 1);
+    }
+
+    // Draw
+    if (Input.GetMouseButton(0))
+    {
+      var mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+      var yPixel = (int)((mousePos.y * 64) + (resolution / 2));
+      var xPixel = (int)((mousePos.x * 64) + (width / 2));
+      int index = yPixel * width + xPixel;
+      computeShader.SetInt("mouseIndex", index);
+      computeShader.SetBuffer(3, "gridOut", swap ? buffer2 : buffer1);
+      computeShader.Dispatch(3, 1, 1, 1);
     }
   }
 
