@@ -45,7 +45,10 @@ public class Main : MonoBehaviour
     QualitySettings.vSyncCount = maxSpeed ? 0 : 1;
     swap = false;
 
+    // Round to nearest even
+    if (resolution % 2 != 0) { resolution++; }
     width = (int)(resolution * cam.aspect);
+    if (width % 2 != 0) { width++; }
     totalCells = width * resolution;
 
     // Resize buffer if needed
@@ -130,8 +133,8 @@ public class Main : MonoBehaviour
     if (Input.GetMouseButton(0))
     {
       var mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-      var yPixel = (int)((mousePos.y * 64f) + (resolution / 2f));
-      var xPixel = (int)((mousePos.x * 64f) + (width / 2f));
+      var yPixel = (int)((mousePos.y * 64) + (resolution / 2));
+      var xPixel = (int)((mousePos.x * 64) + (width / 2));
       int index = yPixel * width + xPixel;
       computeShader.SetInt("mouseIndex", index);
       computeShader.SetBuffer(3, "gridOut", swap ? buffer2 : buffer1);
