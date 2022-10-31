@@ -65,7 +65,7 @@ public class Main : MonoBehaviour
     cam.transform.position = new Vector3(0, 0, -10);
     targetZoom = cam.orthographicSize;
     minZoom = cam.orthographicSize * 1.05f;
-    quad.localScale = new Vector2(cam.orthographicSize * cam.aspect * 2, cam.orthographicSize * 2);
+    quad.localScale = new Vector2(width / 64f, resolution / 64f);
     cellText.text = "Cells: " + totalCells;
 
     quadMaterial.SetBuffer("grid", buffer1);
@@ -126,6 +126,7 @@ public class Main : MonoBehaviour
     // Clear
     if (Input.GetKeyDown(KeyCode.Backspace))
     {
+      paused = true;
       computeShader.SetBuffer(2, "gridOut", buffer1);
       computeShader.Dispatch(2, computeGroupsX, computeGroupsY, 1);
       computeShader.SetBuffer(2, "gridOut", buffer2);
@@ -133,13 +134,16 @@ public class Main : MonoBehaviour
     }
 
     // Draw
-    if (Input.GetMouseButton(0))
+    var erase = Input.GetKey(KeyCode.C);
+    var leftMouse = Input.GetMouseButton(0);
+    if (leftMouse || erase)
     {
       var mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
       var yPixel = (int)((mousePos.y * 64) + (resolution / 2));
       var xPixel = (int)((mousePos.x * 64) + (width / 2));
       int index = yPixel * width + xPixel;
       computeShader.SetInt("mouseIndex", index);
+      computeShader.SetBool("erase", erase);
       computeShader.SetBuffer(3, "gridOut", swap ? buffer2 : buffer1);
       computeShader.Dispatch(3, 1, 1, 1);
     }

@@ -61,8 +61,9 @@ void Clear(uint3 id : SV_DispatchThreadID) {
 }
 
 uint mouseIndex;
+bool erase;
 #pragma kernel Draw // ID 3
 [numthreads(1, 1, 1)]
 void Draw(uint3 id : SV_DispatchThreadID) {
-  gridOut[mouseIndex] = 1;
+  gridOut[mouseIndex] = erase ? 0 : 1;
 }
