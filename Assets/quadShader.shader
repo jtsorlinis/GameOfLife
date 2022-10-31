@@ -13,7 +13,7 @@ Shader "Unlit/quadShader" {
         vertex = UnityObjectToClipPos(vertex);
       }
 
-      fixed4 frag(float2 uv : TEXCOORD0) : SV_Target {
+      fixed4 frag(float4 vertex : SV_POSITION, float2 uv : TEXCOORD0) : SV_Target {
         uint xpos = uv.x * width;
         uint ypos = uv.y * height;
         uint index = ypos * width + xpos;
