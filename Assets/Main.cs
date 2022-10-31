@@ -130,8 +130,8 @@ public class Main : MonoBehaviour
     if (Input.GetMouseButton(0))
     {
       var mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-      var yPixel = (int)((mousePos.y * 64) + (resolution / 2));
-      var xPixel = (int)((mousePos.x * 64) + (width / 2));
+      var yPixel = (int)((mousePos.y * 64f) + (resolution / 2f));
+      var xPixel = (int)((mousePos.x * 64f) + (width / 2f));
       int index = yPixel * width + xPixel;
       computeShader.SetInt("mouseIndex", index);
       computeShader.SetBuffer(3, "gridOut", swap ? buffer2 : buffer1);
