@@ -22,6 +22,7 @@ public class Main : MonoBehaviour
   float minZoom, targetZoom;
   float maxZoom = 0.5f;
   Camera cam;
+  bool paused = false;
 
   ComputeBuffer buffer1;
   ComputeBuffer buffer2;
@@ -92,6 +93,11 @@ public class Main : MonoBehaviour
 
     PanZoom();
 
+    if (paused)
+    {
+      return;
+    }
+
     if (maxSpeed)
     {
       CalculateLife();
@@ -156,6 +162,11 @@ public class Main : MonoBehaviour
   public void RestartButton()
   {
     Start();
+  }
+
+  public void PlayPauseButton()
+  {
+    paused = !paused;
   }
 
   public void TurboSwitch(bool active)
