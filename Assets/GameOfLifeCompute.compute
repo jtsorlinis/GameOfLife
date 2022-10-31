@@ -49,7 +49,6 @@ void Generate(uint3 id : SV_DispatchThreadID) {
   }
 
   int index = id.y * width + id.x;
-
   uint alive = round(pcg_hash(rng_state + index));
   gridOut[index] = alive;
 }
