@@ -20,7 +20,7 @@ public class Main : MonoBehaviour
   [SerializeField] Material quadMaterial;
 
   float minZoom, targetZoom;
-  float maxZoom = 0.5f;
+  float maxZoom = 0.25f;
   Camera cam;
   bool paused = false;
 
@@ -46,9 +46,9 @@ public class Main : MonoBehaviour
     swap = false;
 
     // Round to nearest even
-    if (resolution % 2 != 0) { resolution++; }
+    if (resolution % 2 != 0) { resolution--; }
     width = (int)(resolution * cam.aspect);
-    if (width % 2 != 0) { width++; }
+    if (width % 2 != 0) { width--; }
     totalCells = width * resolution;
 
     // Resize buffer if needed
@@ -120,6 +120,9 @@ public class Main : MonoBehaviour
 
   void HandleDrawing()
   {
+    // Draw grid when zoomed in
+    quadMaterial.SetFloat("zoom", cam.orthographicSize);
+
     // Clear
     if (Input.GetKeyDown(KeyCode.Backspace))
     {
