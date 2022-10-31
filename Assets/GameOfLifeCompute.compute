@@ -26,8 +26,8 @@ void Update(uint3 id : SV_DispatchThreadID) {
   neighbours += gridIn[index + width]; // Bottom
   neighbours += gridIn[index + width + 1]; // Bottom Right
 
-  uint self = gridIn[index] > 0;
-  if ((self > 0 && neighbours == 2) || neighbours == 3) {
+  bool alive = gridIn[index] > 0;
+  if ((alive && neighbours == 2) || neighbours == 3) {
     gridOut[index] = 1;
   } else {
     gridOut[index] = 0;
