@@ -16,6 +16,7 @@ public class Main : MonoBehaviour
   [SerializeField] Text fpsText;
   [SerializeField] Text cellText;
   [SerializeField] Slider slider;
+  [SerializeField] Button playPauseButton;
   [SerializeField] Transform quad;
   [SerializeField] Material quadMaterial;
 
@@ -181,6 +182,13 @@ public class Main : MonoBehaviour
     {
       Cursor.lockState = CursorLockMode.None;
     }
+
+    // Pause play on space
+    if (Input.GetKeyDown(KeyCode.Space))
+    {
+      paused = !paused;
+    }
+    playPauseButton.image.color = paused ? Color.red : Color.white;
 
     // Quit on escape
     if (Input.GetKey("escape"))

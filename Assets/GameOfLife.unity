@@ -496,6 +496,7 @@ MonoBehaviour:
   fpsText: {fileID: 7065921369160134509}
   cellText: {fileID: 7065921368353659000}
   slider: {fileID: 981812505}
+  playPauseButton: {fileID: 1529346988}
   quad: {fileID: 1451432760}
   quadMaterial: {fileID: 2100000, guid: d25014748fc5c574ca112bec5f0fc122, type: 2}
 --- !u!1 &650720962
