@@ -43,7 +43,6 @@ public class Main : MonoBehaviour
   {
     cam = Camera.main;
     slider.maxValue = Mathf.Floor(Mathf.Sqrt((1 << 29) / cam.aspect));
-    QualitySettings.vSyncCount = maxSpeed ? 0 : 1;
     swap = false;
 
     // Round to nearest even
@@ -94,6 +93,7 @@ public class Main : MonoBehaviour
   void Update()
   {
     fpsText.text = "FPS: " + (int)(1 / Time.smoothDeltaTime);
+    QualitySettings.vSyncCount = (maxSpeed && !paused) ? 0 : 1;
 
     HandleDrawing();
 
@@ -216,7 +216,6 @@ public class Main : MonoBehaviour
   public void TurboSwitch(bool active)
   {
     maxSpeed = active;
-    QualitySettings.vSyncCount = maxSpeed ? 0 : 1;
   }
 
   public void OnDestroy()
