@@ -5,7 +5,8 @@ public class Main : MonoBehaviour
 {
   [SerializeField]
   int resolution = 128;
-  int width, totalCells;
+  int width, gridWidth;
+  ulong totalCells;
   [SerializeField]
   bool maxSpeed = false;
   [SerializeField, Range(1, 60)]
@@ -42,23 +43,23 @@ public class Main : MonoBehaviour
   void Start()
   {
     cam = Camera.main;
-    slider.maxValue = Mathf.Floor(Mathf.Sqrt((1 << 29) / cam.aspect));
+    slider.maxValue = Mathf.Floor(Mathf.Sqrt((1ul << 34) / cam.aspect));
     swap = false;
 
     // Round to nearest even
-    if (resolution % 2 != 0) { resolution--; }
+    resolution -= resolution % 2;
     width = (int)(resolution * cam.aspect);
-    if (width % 2 != 0) { width--; }
-    totalCells = width * resolution;
+    width -= width % 32;
+    gridWidth = width / 32;
+    totalCells = (ulong)width * (ulong)resolution;
 
-    // Resize buffer if needed
-    if (totalCells > bufferLength)
+    if (buffer1.count < Mathf.CeilToInt(totalCells / 32f))
     {
       buffer1.Dispose();
       buffer2.Dispose();
-      bufferLength = Mathf.NextPowerOfTwo(totalCells);
-      buffer1 = new ComputeBuffer(bufferLength, 4);
-      buffer2 = new ComputeBuffer(bufferLength, 4);
+      var newsize = Mathf.NextPowerOfTwo(Mathf.CeilToInt(totalCells / 32f));
+      buffer1 = new ComputeBuffer(newsize, 4);
+      buffer2 = new ComputeBuffer(newsize, 4);
     }
 
     cam.orthographicSize = resolution / 128f;
@@ -66,17 +67,19 @@ public class Main : MonoBehaviour
     targetZoom = cam.orthographicSize;
     minZoom = cam.orthographicSize * 1.05f;
     quad.localScale = new Vector2(width / 64f, resolution / 64f);
-    cellText.text = "Cells: " + totalCells;
+    cellText.text = "Cells: " + string.Format("{0:n0}", totalCells);
 
     quadMaterial.SetBuffer("grid", buffer1);
     quadMaterial.SetInteger("height", resolution);
     quadMaterial.SetInteger("width", width);
+    quadMaterial.SetInt("gridWidth", gridWidth);
 
     computeShader.SetInt("rng_state", Random.Range(0, int.MaxValue));
     computeShader.SetInt("width", width);
+    computeShader.SetInt("gridWidth", gridWidth);
     computeShader.SetInt("height", resolution);
 
-    computeGroupsX = Mathf.CeilToInt(width / 8f);
+    computeGroupsX = Mathf.CeilToInt(width / 256f);
     computeGroupsY = Mathf.CeilToInt(resolution / 8f);
 
     // Clear previous grid
@@ -141,9 +144,12 @@ public class Main : MonoBehaviour
     {
       var mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
       var yPixel = (int)((mousePos.y * 64) + (resolution / 2));
+      var gridxPixel = (int)((mousePos.x * 2) + (width / 64f));
       var xPixel = (int)((mousePos.x * 64) + (width / 2));
-      int index = yPixel * width + xPixel;
-      computeShader.SetInt("mouseIndex", index);
+      int mouseIndex = yPixel * width + xPixel;
+      int gridIndex = yPixel * gridWidth + gridxPixel;
+      computeShader.SetInt("bitPos", mouseIndex % 32);
+      computeShader.SetInt("gridIndex", gridIndex);
       computeShader.SetBool("erase", erase);
       computeShader.SetBuffer(3, "gridOut", swap ? buffer2 : buffer1);
       computeShader.Dispatch(3, 1, 1, 1);
