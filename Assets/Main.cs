@@ -143,13 +143,7 @@ public class Main : MonoBehaviour
     if (leftMouse || erase)
     {
       var mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-      var yPixel = (int)((mousePos.y * 64) + (resolution / 2));
-      var gridxPixel = (int)((mousePos.x * 2) + (width / 64f));
-      var xPixel = (int)((mousePos.x * 64) + (width / 2));
-      int mouseIndex = yPixel * width + xPixel;
-      int gridIndex = yPixel * gridWidth + gridxPixel;
-      computeShader.SetInt("bitPos", mouseIndex % 32);
-      computeShader.SetInt("gridIndex", gridIndex);
+      computeShader.SetVector("mousePos", mousePos);
       computeShader.SetBool("erase", erase);
       computeShader.SetBuffer(3, "gridOut", swap ? buffer2 : buffer1);
       computeShader.Dispatch(3, 1, 1, 1);

@@ -489,7 +489,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b0c0ab3b3753f0e4e8e6a6cc598e29f1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  resolution: 128
+  resolution: 512
   maxSpeed: 0
   updateSpeed: 20
   computeShader: {fileID: 7200000, guid: 4366bd7dcc9609b45b14ecf226b032ac, type: 3}
