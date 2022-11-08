@@ -67,7 +67,7 @@ public class Main : MonoBehaviour
     targetZoom = cam.orthographicSize;
     minZoom = cam.orthographicSize * 1.05f;
     quad.localScale = new Vector2(width / 64f, resolution / 64f);
-    cellText.text = "Cells: " + totalCells;
+    cellText.text = "Cells: " + string.Format("{0:n0}", totalCells);
 
     quadMaterial.SetBuffer("grid", buffer1);
     quadMaterial.SetInteger("height", resolution);
@@ -144,9 +144,12 @@ public class Main : MonoBehaviour
     {
       var mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
       var yPixel = (int)((mousePos.y * 64) + (resolution / 2));
+      var gridxPixel = (int)((mousePos.x * 2) + (width / 64f));
       var xPixel = (int)((mousePos.x * 64) + (width / 2));
-      int index = yPixel * width + xPixel;
-      computeShader.SetInt("mouseIndex", index);
+      int mouseIndex = yPixel * width + xPixel;
+      int gridIndex = yPixel * gridWidth + gridxPixel;
+      computeShader.SetInt("bitPos", mouseIndex % 32);
+      computeShader.SetInt("gridIndex", gridIndex);
       computeShader.SetBool("erase", erase);
       computeShader.SetBuffer(3, "gridOut", swap ? buffer2 : buffer1);
       computeShader.Dispatch(3, 1, 1, 1);
