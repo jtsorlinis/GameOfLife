@@ -8,9 +8,17 @@ Shader "Unlit/quadShader" {
       #define lineThickness 0.1
 
       uint width;
+      uint gridWidth;
       uint height;
       float zoom;
       StructuredBuffer<uint> grid;
+      bool bits[32];
+
+      void get_bits(uint input) {
+        for (int bit = 0; bit < 32; ++bit) {
+          bits[bit] = (input >> bit) & 1;;
+        }
+      }
 
       void vert(inout float4 vertex : POSITION, inout float2 uv : TEXCOORD0) {
         vertex = UnityObjectToClipPos(vertex);
@@ -23,9 +31,12 @@ Shader "Unlit/quadShader" {
         }
 
         uint xpos = uv.x * width;
+        uint gridxpos = uv.x * gridWidth;
         uint ypos = uv.y * height;
         uint index = ypos * width + xpos;
-        return grid[index];
+        uint gridIndex = ypos * gridWidth + gridxpos;
+        get_bits(grid[gridIndex]);
+        return bits[index % 32];
       }
       ENDCG
     }

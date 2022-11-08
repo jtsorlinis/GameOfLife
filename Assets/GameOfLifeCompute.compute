@@ -2,61 +2,116 @@ RWStructuredBuffer<uint> gridOut;
 StructuredBuffer<uint> gridIn;
 uint rng_state;
 uint width;
+uint gridWidth;
 uint height;
+
+uint getBit(uint input, uint pos) {
+  return (input >> (pos)) & 1;
+}
+
+uint setBit(uint input, uint pos) {
+  return (input | (1 << pos));
+}
+
+uint clearBit(uint input, uint pos) {
+  return (input & (~(1 << pos)));
+}
 
 #pragma kernel Update // ID 0
 [numthreads(8, 8, 1)]
 void Update(uint3 id : SV_DispatchThreadID) {
   // Leave 1 pixel border
-  if (id.x == 0 || id.x >= width - 1 || id.y == 0 || id.y >= height - 1) {
+  if (id.x == 0 || id.x >= gridWidth - 1 || id.y == 0 || id.y >= height - 1) {
     return;
   }
 
-  uint index = id.y * width + id.x;
+  uint index = id.y * gridWidth + id.x;
 
-  uint neighbours = 0;
-  neighbours += gridIn[index - width - 1]; // Top left
-  neighbours += gridIn[index - width]; // Top
-  neighbours += gridIn[index - width + 1]; // Top Right
+  uint topLeft = gridIn[index - gridWidth - 1];
+  uint top = gridIn[index - gridWidth];
+  uint topRight = gridIn[index - gridWidth + 1];
+  uint left = gridIn[index - 1];
+  uint cell = gridIn[index];
+  uint right = gridIn[index + 1];
+  uint bottomLeft = gridIn[index + gridWidth - 1];
+  uint bottom = gridIn[index + gridWidth];
+  uint bottomRight = gridIn[index + gridWidth + 1];
+  
 
-  neighbours += gridIn[index - 1]; // Left
-  neighbours += gridIn[index + 1]; // Right
-
-  neighbours += gridIn[index + width - 1]; // Bottom left
-  neighbours += gridIn[index + width]; // Bottom
-  neighbours += gridIn[index + width + 1]; // Bottom Right
-
-  bool alive = gridIn[index] > 0;
+  // Leftmost cell
+  uint neighbours = getBit(topLeft, 31);
+  neighbours += getBit(top, 0);
+  neighbours += getBit(top, 1);
+  neighbours += getBit(left, 31);
+  neighbours += getBit(cell, 1);
+  neighbours += getBit(bottomLeft, 31);
+  neighbours += getBit(bottom, 0);
+  neighbours += getBit(bottom, 1);
+  uint alive = getBit(cell, 0);
   if ((alive && neighbours == 2) || neighbours == 3) {
-    gridOut[index] = 1;
+    gridOut[index] = setBit(gridOut[index], 0);
   } else {
-    gridOut[index] = 0;
+    gridOut[index] = clearBit(gridOut[index], 0);
+  }
+
+  // Rightmost cell
+  neighbours = getBit(top, 30);
+  neighbours += getBit(top, 31);
+  neighbours += getBit(topRight, 0);
+  neighbours += getBit(cell, 30);
+  neighbours += getBit(right, 0);
+  neighbours += getBit(bottom, 30);
+  neighbours += getBit(bottom, 31);
+  neighbours += getBit(bottomRight, 0);
+  alive = getBit(cell, 31);
+  if ((alive && neighbours == 2) || neighbours == 3) {
+    gridOut[index] = setBit(gridOut[index], 31);
+  } else {
+    gridOut[index] = clearBit(gridOut[index], 31);
+  }
+
+  // All middle cells
+  for (int i = 1; i < 31; i++) {
+    neighbours = getBit(top, i - 1);
+    neighbours += getBit(top, i);
+    neighbours += getBit(top, i + 1);
+    neighbours += getBit(cell, i - 1);
+    neighbours += getBit(cell, i + 1);
+    neighbours += getBit(bottom, i - 1);
+    neighbours += getBit(bottom, i);
+    neighbours += getBit(bottom, i + 1);
+
+    alive = getBit(cell, i);
+    if ((alive && neighbours == 2) || neighbours == 3) {
+      gridOut[index] = setBit(gridOut[index], i);
+    } else {
+      gridOut[index] = clearBit(gridOut[index], i);
+    }
   }
 }
 
-float pcg_hash(uint input) {
+uint pcg_hash(uint input) {
   uint state = input * 747796405u + 2891336453u;
   uint word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
-  return ((word >> 22u) ^ word) / 4294967295.0;
+  return ((word >> 22u) ^ word);
 }
 
 #pragma kernel Generate // ID 1
 [numthreads(8, 8, 1)]
 void Generate(uint3 id : SV_DispatchThreadID) {
   // Leave 1 pixel border
-  if (id.x == 0 || id.x >= width - 1 || id.y == 0 || id.y >= height - 1) {
+  if (id.x == 0 || id.x >= gridWidth - 1 || id.y == 0 || id.y >= height - 1) {
     return;
   }
 
-  int index = id.y * width + id.x;
-  uint alive = round(pcg_hash(rng_state + index));
-  gridOut[index] = alive;
+  uint index = id.y * gridWidth + id.x;
+  gridOut[index] = pcg_hash(rng_state + index);
 }
 
 #pragma kernel Clear // ID 2
 [numthreads(8, 8, 1)]
 void Clear(uint3 id : SV_DispatchThreadID) {
-  int index = id.y * width + id.x;
+  int index = id.y * gridWidth + id.x;
   gridOut[index] = 0;
 }
 
