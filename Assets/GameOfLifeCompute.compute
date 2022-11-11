@@ -9,12 +9,12 @@ uint getBit(uint input, uint pos) {
   return (input >> (pos)) & 1;
 }
 
-uint setBit(uint input, uint pos) {
-  return (input | (1 << pos));
+void setBit(inout uint input, uint pos) {
+  input |= (1 << pos);
 }
 
-uint clearBit(uint input, uint pos) {
-  return (input & (~(1 << pos)));
+void clearBit(inout uint input, uint pos) {
+  input &= ~(1 << pos);
 }
 
 #pragma kernel Update // ID 0
@@ -27,6 +27,7 @@ void Update(uint3 id : SV_DispatchThreadID) {
 
   uint index = id.y * gridWidth + id.x;
 
+  // Get neighbouring indexes
   uint topLeft = gridIn[index - gridWidth - 1];
   uint top = gridIn[index - gridWidth];
   uint topRight = gridIn[index - gridWidth + 1];
@@ -37,6 +38,7 @@ void Update(uint3 id : SV_DispatchThreadID) {
   uint bottom = gridIn[index + gridWidth];
   uint bottomRight = gridIn[index + gridWidth + 1];
   
+  uint output = 0;
 
   // Leftmost cell (Bit 0)
   uint neighbours = getBit(topLeft, 31);
@@ -47,11 +49,12 @@ void Update(uint3 id : SV_DispatchThreadID) {
   neighbours += getBit(bottomLeft, 31);
   neighbours += getBit(bottom, 0);
   neighbours += getBit(bottom, 1);
+  
   uint alive = getBit(cell, 0);
   if ((alive && neighbours == 2) || neighbours == 3) {
-    gridOut[index] = setBit(gridOut[index], 0);
+    setBit(output, 0);
   } else {
-    gridOut[index] = clearBit(gridOut[index], 0);
+    clearBit(output, 0);
   }
 
   // All middle cells (Bits 1-30)
@@ -68,9 +71,9 @@ void Update(uint3 id : SV_DispatchThreadID) {
 
     alive = getBit(cell, i);
     if ((alive && neighbours == 2) || neighbours == 3) {
-      gridOut[index] = setBit(gridOut[index], i);
+      setBit(output, i);
     } else {
-      gridOut[index] = clearBit(gridOut[index], i);
+      clearBit(output, i);
     }
   }
 
@@ -83,12 +86,15 @@ void Update(uint3 id : SV_DispatchThreadID) {
   neighbours += getBit(bottom, 30);
   neighbours += getBit(bottom, 31);
   neighbours += getBit(bottomRight, 0);
+
   alive = getBit(cell, 31);
   if ((alive && neighbours == 2) || neighbours == 3) {
-    gridOut[index] = setBit(gridOut[index], 31);
+    setBit(output, 31);
   } else {
-    gridOut[index] = clearBit(gridOut[index], 31);
+    clearBit(output, 31);
   }
+
+  gridOut[index] = output;
 }
 
 uint pcg_hash(uint input) {
@@ -134,8 +140,8 @@ void Draw(uint3 id : SV_DispatchThreadID) {
   uint gridIndex = yPos * gridWidth + gridXPos;
   
   if (erase) {
-    gridOut[gridIndex] = clearBit(gridOut[gridIndex], bitPos);
+    clearBit(gridOut[gridIndex], bitPos);
   } else {
-    gridOut[gridIndex] = setBit(gridOut[gridIndex], bitPos);
+    setBit(gridOut[gridIndex], bitPos);
   }
 }
