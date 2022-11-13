@@ -12,12 +12,9 @@ Shader "Unlit/quadShader" {
       uint height;
       float zoom;
       StructuredBuffer<uint> grid;
-      bool bits[32];
 
-      void get_bits(uint input) {
-        for (int bit = 0; bit < 32; ++bit) {
-          bits[bit] = (input >> bit) & 1;;
-        }
+      uint getBit(uint input, uint pos) {
+        return (input >> (pos)) & 1;
       }
 
       void vert(inout float4 vertex : POSITION, inout float2 uv : TEXCOORD0) {
@@ -35,8 +32,7 @@ Shader "Unlit/quadShader" {
         uint ypos = uv.y * height;
         uint index = ypos * width + xpos;
         uint gridIndex = ypos * gridWidth + gridxpos;
-        get_bits(grid[gridIndex]);
-        return bits[index % 32];
+        return getBit(grid[gridIndex], index % 32);
       }
       ENDCG
     }
