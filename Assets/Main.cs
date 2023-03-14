@@ -3,12 +3,11 @@ using UnityEngine.UI;
 
 public class Main : MonoBehaviour
 {
+  bool useGPU = false;
   [SerializeField]
   int resolution = 128;
   int width, gridWidth;
   ulong totalCells;
-  [SerializeField]
-  bool maxSpeed = false;
   [SerializeField, Range(1, 60)]
   float updateSpeed = 1;
 
@@ -26,8 +25,8 @@ public class Main : MonoBehaviour
   Camera cam;
   bool paused = false;
 
-  ComputeBuffer buffer1;
-  ComputeBuffer buffer2;
+  ComputeBuffer buffer1, buffer2;
+  int[] array1, array2;
   int bufferLength = 1;
   int computeGroupsX;
   int computeGroupsY;
@@ -43,7 +42,7 @@ public class Main : MonoBehaviour
   void Start()
   {
     cam = Camera.main;
-    slider.maxValue = Mathf.Floor(Mathf.Sqrt((1ul << 34) / cam.aspect));
+    slider.maxValue = Mathf.Floor(Mathf.Sqrt((1ul << (useGPU ? 34 : 24)) / cam.aspect));
     swap = false;
 
     // Round to nearest even
@@ -57,9 +56,9 @@ public class Main : MonoBehaviour
     {
       buffer1.Dispose();
       buffer2.Dispose();
-      var newsize = Mathf.NextPowerOfTwo(Mathf.CeilToInt(totalCells / 32f));
-      buffer1 = new ComputeBuffer(newsize, 4);
-      buffer2 = new ComputeBuffer(newsize, 4);
+      bufferLength = Mathf.NextPowerOfTwo(Mathf.CeilToInt(totalCells / 32f));
+      buffer1 = new ComputeBuffer(bufferLength, 4);
+      buffer2 = new ComputeBuffer(bufferLength, 4);
     }
 
     cam.orthographicSize = resolution / 128f;
@@ -74,31 +73,53 @@ public class Main : MonoBehaviour
     quadMaterial.SetInteger("width", width);
     quadMaterial.SetInt("gridWidth", gridWidth);
 
-    computeShader.SetInt("rng_state", Random.Range(0, int.MaxValue));
-    computeShader.SetInt("width", width);
-    computeShader.SetInt("gridWidth", gridWidth);
-    computeShader.SetInt("height", resolution);
+    if (useGPU)
+    {
+      computeShader.SetInt("rng_state", Random.Range(0, int.MaxValue));
+      computeShader.SetInt("width", width);
+      computeShader.SetInt("gridWidth", gridWidth);
+      computeShader.SetInt("height", resolution);
 
-    computeGroupsX = Mathf.CeilToInt(width / 256f);
-    computeGroupsY = Mathf.CeilToInt(resolution / 8f);
+      computeGroupsX = Mathf.CeilToInt(width / 256f);
+      computeGroupsY = Mathf.CeilToInt(resolution / 8f);
 
-    // Clear previous grid
-    computeShader.SetBuffer(2, "gridOut", buffer1);
-    computeShader.Dispatch(2, computeGroupsX, computeGroupsY, 1);
-    computeShader.SetBuffer(2, "gridOut", buffer2);
-    computeShader.Dispatch(2, computeGroupsX, computeGroupsY, 1);
+      // Clear previous grid
+      computeShader.SetBuffer(2, "gridOut", buffer1);
+      computeShader.Dispatch(2, computeGroupsX, computeGroupsY, 1);
+      computeShader.SetBuffer(2, "gridOut", buffer2);
+      computeShader.Dispatch(2, computeGroupsX, computeGroupsY, 1);
 
-    // Generate new grid
-    computeShader.SetBuffer(1, "gridOut", buffer1);
-    computeShader.Dispatch(1, computeGroupsX, computeGroupsY, 1);
+      // Generate new grid
+      computeShader.SetBuffer(1, "gridOut", buffer1);
+      computeShader.Dispatch(1, computeGroupsX, computeGroupsY, 1);
+    }
+    else
+    {
+      int length = Mathf.CeilToInt(totalCells / 32f);
+      array1 = new int[length];
+      array2 = new int[length];
+      buffer1.Dispose();
+      buffer2.Dispose();
+      buffer1 = new ComputeBuffer(length, 4);
+      buffer2 = new ComputeBuffer(length, 4);
+
+      for (int y = 1; y < resolution - 1; y++)
+      {
+        for (int x = 1; x < gridWidth - 1; x++)
+        {
+          int index = y * gridWidth + x;
+          array1[index] = Random.Range(int.MinValue, int.MaxValue);
+          array2[index] = 0;
+        }
+      }
+    }
   }
 
   void Update()
   {
+    quadMaterial.SetFloat("zoom", cam.orthographicSize);
     fpsText.text = "FPS: " + (int)(1 / Time.smoothDeltaTime);
-    QualitySettings.vSyncCount = (maxSpeed && !paused) ? 0 : 1;
-
-    HandleDrawing();
+    QualitySettings.vSyncCount = paused ? 1 : 0;
 
     PanZoom();
 
@@ -106,56 +127,25 @@ public class Main : MonoBehaviour
     {
       return;
     }
-
-    if (maxSpeed)
-    {
-      CalculateLife();
-    }
-    else
-    {
-      timer -= Time.deltaTime;
-      if (timer < 0)
-      {
-        CalculateLife();
-        timer = 1 / updateSpeed;
-      }
-    }
-  }
-
-  void HandleDrawing()
-  {
-    // Draw grid when zoomed in
-    quadMaterial.SetFloat("zoom", cam.orthographicSize);
-
-    // Clear
-    if (Input.GetKeyDown(KeyCode.Backspace))
-    {
-      paused = true;
-      computeShader.SetBuffer(2, "gridOut", buffer1);
-      computeShader.Dispatch(2, computeGroupsX, computeGroupsY, 1);
-      computeShader.SetBuffer(2, "gridOut", buffer2);
-      computeShader.Dispatch(2, computeGroupsX, computeGroupsY, 1);
-    }
-
-    // Draw
-    var erase = Input.GetKey(KeyCode.C);
-    var leftMouse = Input.GetMouseButton(0);
-    if (leftMouse || erase)
-    {
-      var mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-      computeShader.SetVector("mousePos", mousePos);
-      computeShader.SetBool("erase", erase);
-      computeShader.SetBuffer(3, "gridOut", swap ? buffer2 : buffer1);
-      computeShader.Dispatch(3, 1, 1, 1);
-    }
+    CalculateLife();
   }
 
   void CalculateLife()
   {
-    computeShader.SetBuffer(0, "gridIn", swap ? buffer2 : buffer1);
-    computeShader.SetBuffer(0, "gridOut", swap ? buffer1 : buffer2);
-    computeShader.Dispatch(0, computeGroupsX, computeGroupsY, 1);
-    quadMaterial.SetBuffer("grid", swap ? buffer1 : buffer2);
+    if (useGPU)
+    {
+      computeShader.SetBuffer(0, "gridIn", swap ? buffer2 : buffer1);
+      computeShader.SetBuffer(0, "gridOut", swap ? buffer1 : buffer2);
+      computeShader.Dispatch(0, computeGroupsX, computeGroupsY, 1);
+      quadMaterial.SetBuffer("grid", swap ? buffer1 : buffer2);
+    }
+    else
+    {
+      CPULife.CalculateLife(swap ? array2 : array1, swap ? array1 : array2, gridWidth, resolution);
+      buffer1.SetData(swap ? array2 : array1);
+      quadMaterial.SetBuffer("grid", buffer1);
+    }
+
     swap = !swap;
   }
 
@@ -213,9 +203,10 @@ public class Main : MonoBehaviour
     paused = !paused;
   }
 
-  public void TurboSwitch(bool active)
+  public void ToggleGPU(bool active)
   {
-    maxSpeed = active;
+    useGPU = active;
+    Start();
   }
 
   public void OnDestroy()
