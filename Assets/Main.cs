@@ -43,7 +43,8 @@ public class Main : MonoBehaviour
   void Start()
   {
     cam = Camera.main;
-    slider.maxValue = Mathf.Floor(Mathf.Sqrt((1ul << 34) / cam.aspect));
+    var maxResolution = Mathf.Floor(Mathf.Sqrt((1ul << 34) / cam.aspect));
+    slider.maxValue = Mathf.Log(maxResolution, 2);
     swap = false;
 
     // Round to nearest even
@@ -188,7 +189,18 @@ public class Main : MonoBehaviour
     {
       paused = !paused;
     }
-    playPauseButton.image.color = paused ? Color.red : Color.white;
+
+    // Turbo on T
+    if (Input.GetKeyDown(KeyCode.T))
+    {
+      maxSpeed = !maxSpeed;
+    }
+
+    // Reset on R
+    if (Input.GetKeyDown(KeyCode.R))
+    {
+      Start();
+    }
 
     // Quit on escape
     if (Input.GetKey("escape"))
@@ -199,23 +211,8 @@ public class Main : MonoBehaviour
 
   public void SliderChange(float val)
   {
-    resolution = (int)val;
+    resolution = (int)Mathf.Pow(2, val);
     Start();
-  }
-
-  public void RestartButton()
-  {
-    Start();
-  }
-
-  public void PlayPauseButton()
-  {
-    paused = !paused;
-  }
-
-  public void TurboSwitch(bool active)
-  {
-    maxSpeed = active;
   }
 
   public void OnDestroy()
