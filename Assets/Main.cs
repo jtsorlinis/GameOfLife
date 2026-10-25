@@ -59,7 +59,7 @@ public class Main : MonoBehaviour
   void Start()
   {
     cam = Camera.main;
-    var maxWords = (int)(Math.Min(SystemInfo.maxGraphicsBufferSize, maxBufferBytes) / 4);
+    var maxWords = (int)(System.Math.Min(SystemInfo.maxGraphicsBufferSize, maxBufferBytes) / 4);
     var maxResolution = Mathf.Min((int)Mathf.Sqrt(maxWords * 32f / cam.aspect), maxRows);
     maxResolution -= maxResolution % 2;
     while (WordsFor(maxResolution) > maxWords)
