@@ -4,7 +4,10 @@ using UnityEngine.InputSystem;
 public class Main : MonoBehaviour
 {
   const int minResolution = 128;
-  const int maxWords = 1 << 29;
+  // 2 GiB to be safe
+  const long maxBufferBytes = 1L << 31;
+  // A dispatch allows 65535 groups per axis, and each group covers 4 rows
+  const int maxRows = 65535 * 4;
   const float pointerSensitivity = 0.1f;
 
   [SerializeField]
@@ -56,7 +59,8 @@ public class Main : MonoBehaviour
   void Start()
   {
     cam = Camera.main;
-    var maxResolution = (int)Mathf.Sqrt(maxWords * 32f / cam.aspect);
+    var maxWords = (int)(Math.Min(SystemInfo.maxGraphicsBufferSize, maxBufferBytes) / 4);
+    var maxResolution = Mathf.Min((int)Mathf.Sqrt(maxWords * 32f / cam.aspect), maxRows);
     maxResolution -= maxResolution % 2;
     while (WordsFor(maxResolution) > maxWords)
     {
@@ -76,7 +80,8 @@ public class Main : MonoBehaviour
     {
       buffer1.Dispose();
       buffer2.Dispose();
-      var newsize = Mathf.NextPowerOfTwo(words);
+      // Rounding up to a power of two could pass the device's limit
+      var newsize = Mathf.Min(Mathf.NextPowerOfTwo(words), maxWords);
       buffer1 = new ComputeBuffer(newsize, 4);
       buffer2 = new ComputeBuffer(newsize, 4);
     }
@@ -110,8 +115,6 @@ public class Main : MonoBehaviour
 
   void Update()
   {
-    // Restart here rather than from the UI callbacks, which can run after this frame's dispatches
-    // and free the buffers they use before the frame renders
     if (pendingResolution > 0 || pendingReset)
     {
       if (pendingResolution > 0)
@@ -125,8 +128,6 @@ public class Main : MonoBehaviour
 
     var turbo = maxSpeed && !paused;
     QualitySettings.vSyncCount = turbo ? 0 : 1;
-    // The web ignores vSyncCount and ties frames to the display refresh rate unless a target frame rate is set.
-    // The editor's Game view ignores it too but runs uncapped, so cap it to the refresh rate there
     var normalFrameRate = Application.isEditor ? Mathf.RoundToInt((float)Screen.currentResolution.refreshRateRatio.value) : -1;
     Application.targetFrameRate = turbo ? 10000 : normalFrameRate;
 
