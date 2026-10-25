@@ -99,8 +99,8 @@ public class Main : MonoBehaviour
     computeShader.SetInt("gridWidth", gridWidth);
     computeShader.SetInt("height", resolution);
 
-    computeGroupsX = Mathf.CeilToInt(gridWidth / 8f);
-    computeGroupsY = Mathf.CeilToInt(resolution / 8f);
+    computeGroupsX = Mathf.CeilToInt(gridWidth / 64f);
+    computeGroupsY = Mathf.CeilToInt(resolution / 4f);
 
     // Clear previous grid
     computeShader.SetBuffer(2, "gridOut", buffer1);

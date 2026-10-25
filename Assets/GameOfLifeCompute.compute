@@ -5,9 +5,9 @@ uint width;
 uint gridWidth;
 uint height;
 
-uint getBit(uint input, uint pos) {
-  return (input >> (pos)) & 1;
-}
+// Wide groups so each SIMD group reads whole cache lines of a row. 256 threads is WebGPU's default limit
+#define groupSizeX 64
+#define groupSizeY 4
 
 void setBit(inout uint input, uint pos) {
   input |= (1 << pos);
@@ -21,8 +21,15 @@ uint lastWordMask() {
   return 0xFFFFFFFF >> (gridWidth * 32 - width);
 }
 
+// Adds three bits in each of the 32 lanes at once
+void fullAdd(uint a, uint b, uint c, out uint sum, out uint carry) {
+  uint ab = a ^ b;
+  sum = ab ^ c;
+  carry = (a & b) | (ab & c);
+}
+
 #pragma kernel Update // ID 0
-[numthreads(8, 8, 1)]
+[numthreads(groupSizeX, groupSizeY, 1)]
 void Update(uint3 id : SV_DispatchThreadID) {
   if (id.x >= gridWidth || id.y >= height) {
     return;
@@ -47,62 +54,23 @@ void Update(uint3 id : SV_DispatchThreadID) {
   uint bottomLeft = gridIn[below - hasLeft] * (hasBottom & hasLeft);
   uint bottom = gridIn[below] * hasBottom;
   uint bottomRight = gridIn[below + hasRight] * (hasBottom & hasRight);
-  
-  uint output = 0;
 
-  // Leftmost cell (Bit 0)
-  uint neighbours = getBit(topLeft, 31);
-  neighbours += getBit(top, 0);
-  neighbours += getBit(top, 1);
-  neighbours += getBit(left, 31);
-  neighbours += getBit(cell, 1);
-  neighbours += getBit(bottomLeft, 31);
-  neighbours += getBit(bottom, 0);
-  neighbours += getBit(bottom, 1);
-  
-  uint alive = getBit(cell, 0);
-  if ((alive && neighbours == 2) || neighbours == 3) {
-    setBit(output, 0);
-  } else {
-    clearBit(output, 0);
-  }
+  // Shift each neighbour into line with the cell it borders (bit i is cell i), then sum all 32 cells' neighbour
+  // counts in parallel as bit planes rather than looping over the bits
+  uint topSum, topCarry, bottomSum, bottomCarry;
+  fullAdd((top << 1) | (topLeft >> 31), top, (top >> 1) | (topRight << 31), topSum, topCarry);
+  fullAdd((bottom << 1) | (bottomLeft >> 31), bottom, (bottom >> 1) | (bottomRight << 31), bottomSum, bottomCarry);
+  uint cellLeft = (cell << 1) | (left >> 31);
+  uint cellRight = (cell >> 1) | (right << 31);
+  uint middleSum = cellLeft ^ cellRight;
+  uint middleCarry = cellLeft & cellRight;
 
-  // All middle cells (Bits 1-30)
-  [unroll]
-  for (int i = 1; i < 31; i++) {
-    neighbours = getBit(top, i - 1);
-    neighbours += getBit(top, i);
-    neighbours += getBit(top, i + 1);
-    neighbours += getBit(cell, i - 1);
-    neighbours += getBit(cell, i + 1);
-    neighbours += getBit(bottom, i - 1);
-    neighbours += getBit(bottom, i);
-    neighbours += getBit(bottom, i + 1);
+  uint ones, twosA, twosB, fours;
+  fullAdd(topSum, middleSum, bottomSum, ones, twosA);
+  fullAdd(topCarry, middleCarry, bottomCarry, twosB, fours);
 
-    alive = getBit(cell, i);
-    if ((alive && neighbours == 2) || neighbours == 3) {
-      setBit(output, i);
-    } else {
-      clearBit(output, i);
-    }
-  }
-
-  // Rightmost cell (Bit 31)
-  neighbours = getBit(top, 30);
-  neighbours += getBit(top, 31);
-  neighbours += getBit(topRight, 0);
-  neighbours += getBit(cell, 30);
-  neighbours += getBit(right, 0);
-  neighbours += getBit(bottom, 30);
-  neighbours += getBit(bottom, 31);
-  neighbours += getBit(bottomRight, 0);
-
-  alive = getBit(cell, 31);
-  if ((alive && neighbours == 2) || neighbours == 3) {
-    setBit(output, 31);
-  } else {
-    clearBit(output, 31);
-  }
+  // 3 neighbours, or 2 if already alive: one twos carry, no fours, and either the ones bit or the cell itself
+  uint output = (ones | cell) & (twosA ^ twosB) & ~fours;
 
   if (id.x == gridWidth - 1) {
     output &= lastWordMask();
@@ -118,7 +86,7 @@ uint pcg_hash(uint input) {
 }
 
 #pragma kernel Generate // ID 1
-[numthreads(8, 8, 1)]
+[numthreads(groupSizeX, groupSizeY, 1)]
 void Generate(uint3 id : SV_DispatchThreadID) {
   if (id.x >= gridWidth || id.y >= height) {
     return;
@@ -133,7 +101,7 @@ void Generate(uint3 id : SV_DispatchThreadID) {
 }
 
 #pragma kernel Clear // ID 2
-[numthreads(8, 8, 1)]
+[numthreads(groupSizeX, groupSizeY, 1)]
 void Clear(uint3 id : SV_DispatchThreadID) {
   if (id.x >= gridWidth || id.y >= height) {
     return;
