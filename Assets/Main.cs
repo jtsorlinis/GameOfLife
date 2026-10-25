@@ -4,8 +4,8 @@ using UnityEngine.InputSystem;
 public class Main : MonoBehaviour
 {
   const int minResolution = 128;
-  // 2 GiB to be safe
-  const long maxBufferBytes = 1L << 31;
+  // Just under 2 GiB, WebGPU on D3D12 can't bind a storage buffer of 2^31 bytes or more
+  const long maxBufferBytes = (1L << 31) - 4;
   // A dispatch allows 65535 groups per axis, and each group covers 4 rows
   const int maxRows = 65535 * 4;
   const float pointerSensitivity = 0.1f;
