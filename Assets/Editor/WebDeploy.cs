@@ -4,6 +4,7 @@ using System.Linq;
 using UnityEditor;
 using UnityEditor.Build.Reporting;
 using UnityEditor.WebGL;
+using UnityEngine;
 using Debug = UnityEngine.Debug;
 
 // One-step web build + GitHub Pages publish.
@@ -70,8 +71,20 @@ public static class WebDeploy
 
   static void Publish()
   {
-    // Login shell so node/npm are on PATH (the editor launched from Hub has a minimal PATH)
-    var psi = new ProcessStartInfo("/bin/zsh", "-lc \"./deploy.sh --skip-build 2>&1\"")
+    // Login shell so node/npm are on PATH (the editor launched from Hub has a minimal PATH).
+    // On Windows that's Git Bash, which gh-pages needs anyway for git.
+    var shell = "/bin/zsh";
+    if (Application.platform == RuntimePlatform.WindowsEditor)
+    {
+      shell = Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.ProgramFiles), "Git", "bin", "bash.exe");
+      if (!File.Exists(shell))
+      {
+        Debug.LogError($"Publish needs Git for Windows, but {shell} was not found");
+        return;
+      }
+    }
+
+    var psi = new ProcessStartInfo(shell, "-lc \"./deploy.sh --skip-build 2>&1\"")
     {
       WorkingDirectory = Directory.GetCurrentDirectory(),
       UseShellExecute = false,
