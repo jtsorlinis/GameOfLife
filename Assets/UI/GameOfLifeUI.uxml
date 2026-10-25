@@ -1,0 +1,61 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" editor-extension-mode="False">
+  <Style src="GameOfLifeUI.uss" />
+  <ui:VisualElement name="hud" class="hud" picking-mode="Ignore">
+    <ui:VisualElement name="card" class="card">
+      <ui:VisualElement class="header">
+        <ui:Label text="Game of Life" class="title" />
+        <ui:VisualElement name="fps-badge" class="fps-badge">
+          <ui:Label name="fps" text="0" class="fps-value" />
+          <ui:Label text="FPS" class="fps-unit" />
+        </ui:VisualElement>
+      </ui:VisualElement>
+
+      <ui:VisualElement class="actions">
+        <ui:Button name="play-pause" text="Pause" focusable="false" class="action action--play" />
+        <ui:Button name="randomise" text="Randomise" focusable="false" class="action" />
+        <ui:Button name="clear" text="Clear" focusable="false" class="action action--last" />
+      </ui:VisualElement>
+
+      <ui:VisualElement class="row">
+        <ui:Label text="Speed" class="row-label" />
+        <ui:VisualElement class="segmented">
+          <ui:Button name="speed-normal" text="Normal" focusable="false" class="segment" />
+          <ui:Button name="speed-turbo" text="Turbo" focusable="false" class="segment" />
+        </ui:VisualElement>
+      </ui:VisualElement>
+
+      <ui:VisualElement class="row row--slider">
+        <ui:Label text="Cells" class="row-label" />
+        <ui:Label name="cell-count" text="0" class="row-value" />
+      </ui:VisualElement>
+      <ui:Slider name="size-slider" low-value="7" high-value="16" value="7" focusable="false" class="size-slider" />
+      <ui:VisualElement class="slider-range">
+        <ui:Label name="cell-min" text="0" class="slider-range-label" />
+        <ui:Label name="cell-max" text="0" class="slider-range-label" />
+      </ui:VisualElement>
+
+      <ui:VisualElement name="keys" class="keys">
+        <ui:VisualElement class="key-row">
+          <ui:Label text="Draw" class="key-action" />
+          <ui:Label text="Drag" class="key" />
+        </ui:VisualElement>
+        <ui:VisualElement class="key-row">
+          <ui:Label text="Erase" class="key-action" />
+          <ui:Label text="Hold C" class="key" />
+        </ui:VisualElement>
+        <ui:VisualElement class="key-row">
+          <ui:Label text="Pan" class="key-action" />
+          <ui:Label text="Right-drag" class="key" />
+        </ui:VisualElement>
+        <ui:VisualElement class="key-row">
+          <ui:Label text="Zoom" class="key-action" />
+          <ui:Label text="Scroll" class="key" />
+        </ui:VisualElement>
+        <ui:VisualElement class="key-row key-row--last">
+          <ui:Label text="Play / Pause" class="key-action" />
+          <ui:Label text="Space" class="key" />
+        </ui:VisualElement>
+      </ui:VisualElement>
+    </ui:VisualElement>
+  </ui:VisualElement>
+</ui:UXML>

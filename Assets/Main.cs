@@ -1,8 +1,12 @@
 using UnityEngine;
-using UnityEngine.UI;
+using UnityEngine.InputSystem;
 
 public class Main : MonoBehaviour
 {
+  const int minResolution = 128;
+  // Same 0.1 scale the old Input Manager axes applied to mouse movement
+  const float pointerSensitivity = 0.1f;
+
   [SerializeField]
   int resolution = 128;
   int width, gridWidth;
@@ -14,10 +18,7 @@ public class Main : MonoBehaviour
 
   [Header("Prefabs")]
   [SerializeField] ComputeShader computeShader;
-  [SerializeField] Text fpsText;
-  [SerializeField] Text cellText;
-  [SerializeField] Slider slider;
-  [SerializeField] Button playPauseButton;
+  [SerializeField] GameOfLifeUI ui;
   [SerializeField] Transform quad;
   [SerializeField] Material quadMaterial;
 
@@ -25,6 +26,10 @@ public class Main : MonoBehaviour
   float maxZoom = 0.25f;
   Camera cam;
   bool paused = false;
+  bool drawing;
+  bool panning;
+  int pendingResolution;
+  bool pendingReset;
 
   ComputeBuffer buffer1;
   ComputeBuffer buffer2;
@@ -38,19 +43,27 @@ public class Main : MonoBehaviour
   {
     buffer1 = new ComputeBuffer(bufferLength, 4);
     buffer2 = new ComputeBuffer(bufferLength, 4);
+
+    ui.SetPaused(paused);
+    ui.SetTurbo(maxSpeed);
+    ui.ResolutionChanged += res => pendingResolution = res;
+    ui.PausedChanged += value => paused = value;
+    ui.TurboChanged += value => maxSpeed = value;
+    ui.RandomiseClicked += () => pendingReset = true;
+    ui.ClearClicked += Clear;
   }
 
   void Start()
   {
     cam = Camera.main;
-    var maxResolution = Mathf.Floor(Mathf.Sqrt((1ul << 34) / cam.aspect));
-    slider.maxValue = Mathf.Log(maxResolution, 2);
+    var maxResolution = (int)Mathf.Floor(Mathf.Sqrt((1ul << 34) / cam.aspect));
+    maxResolution -= maxResolution % 2;
     swap = false;
 
     // Round to nearest even
+    resolution = Mathf.Clamp(resolution, minResolution, maxResolution);
     resolution -= resolution % 2;
-    width = (int)(resolution * cam.aspect);
-    width -= width % 32;
+    width = WidthFor(resolution);
     gridWidth = width / 32;
     totalCells = (ulong)width * (ulong)resolution;
 
@@ -68,7 +81,8 @@ public class Main : MonoBehaviour
     targetZoom = cam.orthographicSize;
     minZoom = cam.orthographicSize * 1.05f;
     quad.localScale = new Vector2(width / 64f, resolution / 64f);
-    cellText.text = "Cells: " + string.Format("{0:n0}", totalCells);
+    ui.SetLimits(minResolution, maxResolution, CellsFor(minResolution), CellsFor(maxResolution));
+    ui.SetGrid(resolution, totalCells);
 
     quadMaterial.SetBuffer("grid", buffer1);
     quadMaterial.SetInteger("height", resolution);
@@ -96,7 +110,19 @@ public class Main : MonoBehaviour
 
   void Update()
   {
-    fpsText.text = "FPS: " + (int)(1 / Time.smoothDeltaTime);
+    // Restart here rather than from the UI callbacks, which can run after this frame's dispatches
+    // and free the buffers they use before the frame renders
+    if (pendingResolution > 0 || pendingReset)
+    {
+      if (pendingResolution > 0)
+      {
+        resolution = pendingResolution;
+      }
+      pendingResolution = 0;
+      pendingReset = false;
+      Start();
+    }
+
     QualitySettings.vSyncCount = (maxSpeed && !paused) ? 0 : 1;
 
     HandleDrawing();
@@ -128,27 +154,41 @@ public class Main : MonoBehaviour
     // Draw grid when zoomed in
     quadMaterial.SetFloat("zoom", cam.orthographicSize);
 
-    // Clear
-    if (Input.GetKeyDown(KeyCode.Backspace))
+    var pointer = Pointer.current;
+    var keyboard = Keyboard.current;
+    if (pointer == null)
     {
-      paused = true;
-      computeShader.SetBuffer(2, "gridOut", buffer1);
-      computeShader.Dispatch(2, computeGroupsX, computeGroupsY, 1);
-      computeShader.SetBuffer(2, "gridOut", buffer2);
-      computeShader.Dispatch(2, computeGroupsX, computeGroupsY, 1);
+      return;
     }
 
-    // Draw
-    var erase = Input.GetKey(KeyCode.C);
-    var leftMouse = Input.GetMouseButton(0);
-    if (leftMouse || erase)
+    // Draw with the left button (or a touch), unless the press started on the panel
+    var pointerPosition = pointer.position.ReadValue();
+    if (pointer.press.wasPressedThisFrame)
     {
-      var mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+      drawing = !GameOfLifeUI.IsPointerOverUI(pointerPosition);
+    }
+    drawing &= pointer.press.isPressed;
+
+    // Holding C erases under the cursor without a click
+    var erase = keyboard != null && keyboard.cKey.isPressed && !GameOfLifeUI.IsPointerOverUI(pointerPosition);
+    if (drawing || erase)
+    {
+      var mousePos = cam.ScreenToWorldPoint(pointerPosition);
       computeShader.SetVector("mousePos", mousePos);
       computeShader.SetBool("erase", erase);
       computeShader.SetBuffer(3, "gridOut", swap ? buffer2 : buffer1);
       computeShader.Dispatch(3, 1, 1, 1);
     }
+  }
+
+  void Clear()
+  {
+    paused = true;
+    ui.SetPaused(paused);
+    computeShader.SetBuffer(2, "gridOut", buffer1);
+    computeShader.Dispatch(2, computeGroupsX, computeGroupsY, 1);
+    computeShader.SetBuffer(2, "gridOut", buffer2);
+    computeShader.Dispatch(2, computeGroupsX, computeGroupsY, 1);
   }
 
   void CalculateLife()
@@ -163,7 +203,18 @@ public class Main : MonoBehaviour
   // UI related stuff
   void PanZoom()
   {
-    targetZoom -= Input.mouseScrollDelta.y * (cam.orthographicSize / 10);
+    var pointer = Pointer.current;
+    var mouse = Mouse.current;
+    var keyboard = Keyboard.current;
+    var pointerPosition = pointer != null ? pointer.position.ReadValue() : Vector2.zero;
+
+    // Don't zoom while scrolling over the panel
+    var scroll = mouse != null ? mouse.scroll.ReadValue().y : 0;
+    if (scroll != 0 && GameOfLifeUI.IsPointerOverUI(pointerPosition))
+    {
+      scroll = 0;
+    }
+    targetZoom -= scroll * (cam.orthographicSize / 10);
     if (targetZoom < maxZoom)
     {
       targetZoom = maxZoom;
@@ -174,45 +225,52 @@ public class Main : MonoBehaviour
     }
     cam.orthographicSize = Mathf.Lerp(cam.orthographicSize, targetZoom, Time.deltaTime * 10);
 
-    if (Input.GetMouseButton(1))
+    // Right-drag pans, unless the press started on the panel
+    if (mouse != null && mouse.rightButton.wasPressedThisFrame)
+    {
+      panning = !GameOfLifeUI.IsPointerOverUI(pointerPosition);
+    }
+    panning &= mouse != null && mouse.rightButton.isPressed;
+    if (panning)
     {
       Cursor.lockState = CursorLockMode.Locked;
-      cam.transform.position -= new Vector3(Input.GetAxis("Mouse X"), Input.GetAxis("Mouse Y")) * (cam.orthographicSize / 50);
+      var pan = mouse.delta.ReadValue() * pointerSensitivity;
+      cam.transform.position -= new Vector3(pan.x, pan.y) * (cam.orthographicSize / 50);
     }
     else
     {
       Cursor.lockState = CursorLockMode.None;
     }
 
+    if (keyboard == null)
+    {
+      return;
+    }
+
     // Pause play on space
-    if (Input.GetKeyDown(KeyCode.Space))
+    if (keyboard.spaceKey.wasPressedThisFrame)
     {
       paused = !paused;
-    }
-
-    // Turbo on T
-    if (Input.GetKeyDown(KeyCode.T))
-    {
-      maxSpeed = !maxSpeed;
-    }
-
-    // Reset on R
-    if (Input.GetKeyDown(KeyCode.R))
-    {
-      Start();
+      ui.SetPaused(paused);
     }
 
     // Quit on escape
-    if (Input.GetKey("escape"))
+    if (keyboard.escapeKey.isPressed)
     {
       Application.Quit();
     }
   }
 
-  public void SliderChange(float val)
+  // Grid width for a given height, matching the screen's aspect in whole 32 cell words
+  int WidthFor(int height)
   {
-    resolution = (int)Mathf.Pow(2, val);
-    Start();
+    var w = (int)(height * cam.aspect);
+    return w - w % 32;
+  }
+
+  ulong CellsFor(int height)
+  {
+    return (ulong)WidthFor(height) * (ulong)height;
   }
 
   public void OnDestroy()

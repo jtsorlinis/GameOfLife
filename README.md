@@ -11,6 +11,4 @@ This is a simple Conway's game of life simulation using Unity thats runs on the 
 - Right-click drag to pan
 - Scroll wheel to zoom
 - Space to play/pause
-- Backspace to clear everything
-- R to reset
-- T to toggle turbo mode
+- Use the panel to randomise, clear, toggle turbo mode or change the grid size
