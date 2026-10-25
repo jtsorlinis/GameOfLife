@@ -126,10 +126,7 @@ public class Main : MonoBehaviour
       Start();
     }
 
-    var turbo = maxSpeed && !paused;
-    QualitySettings.vSyncCount = turbo ? 0 : 1;
-    var normalFrameRate = Application.isEditor ? Mathf.RoundToInt((float)Screen.currentResolution.refreshRateRatio.value) : -1;
-    Application.targetFrameRate = turbo ? 10000 : normalFrameRate;
+    QualitySettings.vSyncCount = (maxSpeed && !paused) ? 0 : 1;
 
     HandleDrawing();
 
