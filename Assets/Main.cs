@@ -102,13 +102,8 @@ public class Main : MonoBehaviour
     computeGroupsX = Mathf.CeilToInt(gridWidth / 64f);
     computeGroupsY = Mathf.CeilToInt(resolution / 4f);
 
-    // Clear previous grid
-    computeShader.SetBuffer(2, "gridOut", buffer1);
-    computeShader.Dispatch(2, computeGroupsX, computeGroupsY, 1);
-    computeShader.SetBuffer(2, "gridOut", buffer2);
-    computeShader.Dispatch(2, computeGroupsX, computeGroupsY, 1);
-
-    // Generate new grid
+    // Generate new grid. No clear needed: this overwrites all of buffer1, and buffer2 is fully written by the
+    // first step before it's shown
     computeShader.SetBuffer(1, "gridOut", buffer1);
     computeShader.Dispatch(1, computeGroupsX, computeGroupsY, 1);
   }
@@ -128,7 +123,12 @@ public class Main : MonoBehaviour
       Start();
     }
 
-    QualitySettings.vSyncCount = (maxSpeed && !paused) ? 0 : 1;
+    var turbo = maxSpeed && !paused;
+    QualitySettings.vSyncCount = turbo ? 0 : 1;
+    // The web ignores vSyncCount and ties frames to the display refresh rate unless a target frame rate is set.
+    // The editor's Game view ignores it too but runs uncapped, so cap it to the refresh rate there
+    var normalFrameRate = Application.isEditor ? Mathf.RoundToInt((float)Screen.currentResolution.refreshRateRatio.value) : -1;
+    Application.targetFrameRate = turbo ? 10000 : normalFrameRate;
 
     HandleDrawing();
 
