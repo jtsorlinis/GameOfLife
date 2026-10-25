@@ -17,26 +17,36 @@ void clearBit(inout uint input, uint pos) {
   input &= ~(1 << pos);
 }
 
+uint lastWordMask() {
+  return 0xFFFFFFFF >> (gridWidth * 32 - width);
+}
+
 #pragma kernel Update // ID 0
 [numthreads(8, 8, 1)]
 void Update(uint3 id : SV_DispatchThreadID) {
-  // Leave 1 pixel border
-  if (id.x == 0 || id.x >= gridWidth - 1 || id.y == 0 || id.y >= height - 1) {
+  if (id.x >= gridWidth || id.y >= height) {
     return;
   }
 
   uint index = id.y * gridWidth + id.x;
 
+  uint hasTop = id.y > 0;
+  uint hasBottom = id.y < height - 1;
+  uint hasLeft = id.x > 0;
+  uint hasRight = id.x < gridWidth - 1;
+  uint above = index - hasTop * gridWidth;
+  uint below = index + hasBottom * gridWidth;
+
   // Get neighbouring indexes
-  uint topLeft = gridIn[index - gridWidth - 1];
-  uint top = gridIn[index - gridWidth];
-  uint topRight = gridIn[index - gridWidth + 1];
-  uint left = gridIn[index - 1];
+  uint topLeft = gridIn[above - hasLeft] * (hasTop & hasLeft);
+  uint top = gridIn[above] * hasTop;
+  uint topRight = gridIn[above + hasRight] * (hasTop & hasRight);
+  uint left = gridIn[index - hasLeft] * hasLeft;
   uint cell = gridIn[index];
-  uint right = gridIn[index + 1];
-  uint bottomLeft = gridIn[index + gridWidth - 1];
-  uint bottom = gridIn[index + gridWidth];
-  uint bottomRight = gridIn[index + gridWidth + 1];
+  uint right = gridIn[index + hasRight] * hasRight;
+  uint bottomLeft = gridIn[below - hasLeft] * (hasBottom & hasLeft);
+  uint bottom = gridIn[below] * hasBottom;
+  uint bottomRight = gridIn[below + hasRight] * (hasBottom & hasRight);
   
   uint output = 0;
 
@@ -94,6 +104,10 @@ void Update(uint3 id : SV_DispatchThreadID) {
     clearBit(output, 31);
   }
 
+  if (id.x == gridWidth - 1) {
+    output &= lastWordMask();
+  }
+
   gridOut[index] = output;
 }
 
@@ -106,19 +120,26 @@ uint pcg_hash(uint input) {
 #pragma kernel Generate // ID 1
 [numthreads(8, 8, 1)]
 void Generate(uint3 id : SV_DispatchThreadID) {
-  // Leave 1 pixel border
-  if (id.x == 0 || id.x >= gridWidth - 1 || id.y == 0 || id.y >= height - 1) {
+  if (id.x >= gridWidth || id.y >= height) {
     return;
   }
 
   uint index = id.y * gridWidth + id.x;
-  gridOut[index] = pcg_hash(rng_state + index);
+  uint cells = pcg_hash(rng_state + index);
+  if (id.x == gridWidth - 1) {
+    cells &= lastWordMask();
+  }
+  gridOut[index] = cells;
 }
 
 #pragma kernel Clear // ID 2
 [numthreads(8, 8, 1)]
 void Clear(uint3 id : SV_DispatchThreadID) {
-  int index = id.y * gridWidth + id.x;
+  if (id.x >= gridWidth || id.y >= height) {
+    return;
+  }
+
+  uint index = id.y * gridWidth + id.x;
   gridOut[index] = 0;
 }
 
@@ -127,18 +148,17 @@ bool erase;
 #pragma kernel Draw // ID 3
 [numthreads(1, 1, 1)]
 void Draw(uint3 id : SV_DispatchThreadID) {
-  uint yPos = (mousePos.y * 64) + (height / 2);
-  uint xPos = (mousePos.x * 64) + (width / 2);
+  int yPos = floor(mousePos.y * 64 + height / 2.0);
+  int xPos = floor(mousePos.x * 64 + width / 2.0);
 
   // Don't allow drawing out of bounds
-  if (xPos < 32 || xPos >= width - 32 || yPos == 0 || yPos >= height - 1) {
+  if (xPos < 0 || xPos >= (int)width || yPos < 0 || yPos >= (int)height) {
     return;
   }
 
-  uint gridXPos = (mousePos.x * 2) + (width / 64.0);
-  uint bitPos = (yPos * width + xPos) % 32;
-  uint gridIndex = yPos * gridWidth + gridXPos;
-  
+  uint bitPos = (uint)xPos % 32;
+  uint gridIndex = (uint)yPos * gridWidth + (uint)xPos / 32;
+
   if (erase) {
     clearBit(gridOut[gridIndex], bitPos);
   } else {

@@ -4,7 +4,7 @@ using UnityEngine.InputSystem;
 public class Main : MonoBehaviour
 {
   const int minResolution = 128;
-  // Same 0.1 scale the old Input Manager axes applied to mouse movement
+  const int maxWords = 1 << 29;
   const float pointerSensitivity = 0.1f;
 
   [SerializeField]
@@ -56,22 +56,27 @@ public class Main : MonoBehaviour
   void Start()
   {
     cam = Camera.main;
-    var maxResolution = (int)Mathf.Floor(Mathf.Sqrt((1ul << 34) / cam.aspect));
+    var maxResolution = (int)Mathf.Sqrt(maxWords * 32f / cam.aspect);
     maxResolution -= maxResolution % 2;
+    while (WordsFor(maxResolution) > maxWords)
+    {
+      maxResolution -= 2;
+    }
     swap = false;
 
     // Round to nearest even
     resolution = Mathf.Clamp(resolution, minResolution, maxResolution);
     resolution -= resolution % 2;
     width = WidthFor(resolution);
-    gridWidth = width / 32;
+    gridWidth = GridWidthFor(width);
     totalCells = (ulong)width * (ulong)resolution;
 
-    if (buffer1.count < Mathf.CeilToInt(totalCells / 32f))
+    var words = gridWidth * resolution;
+    if (buffer1.count < words)
     {
       buffer1.Dispose();
       buffer2.Dispose();
-      var newsize = Mathf.NextPowerOfTwo(Mathf.CeilToInt(totalCells / 32f));
+      var newsize = Mathf.NextPowerOfTwo(words);
       buffer1 = new ComputeBuffer(newsize, 4);
       buffer2 = new ComputeBuffer(newsize, 4);
     }
@@ -94,7 +99,7 @@ public class Main : MonoBehaviour
     computeShader.SetInt("gridWidth", gridWidth);
     computeShader.SetInt("height", resolution);
 
-    computeGroupsX = Mathf.CeilToInt(width / 256f);
+    computeGroupsX = Mathf.CeilToInt(gridWidth / 8f);
     computeGroupsY = Mathf.CeilToInt(resolution / 8f);
 
     // Clear previous grid
@@ -261,11 +266,20 @@ public class Main : MonoBehaviour
     }
   }
 
-  // Grid width for a given height, matching the screen's aspect in whole 32 cell words
+  // Grid width for a given height, matching the screen's aspect to the nearest cell
   int WidthFor(int height)
   {
-    var w = (int)(height * cam.aspect);
-    return w - w % 32;
+    return Mathf.RoundToInt(height * cam.aspect);
+  }
+
+  static int GridWidthFor(int width)
+  {
+    return (width + 31) / 32;
+  }
+
+  int WordsFor(int height)
+  {
+    return GridWidthFor(WidthFor(height)) * height;
   }
 
   ulong CellsFor(int height)
